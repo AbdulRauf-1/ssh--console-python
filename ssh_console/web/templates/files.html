@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Files · {{ server.name }} · SSH Console{% endblock %}
+{% block content %}
+<p class="muted" style="margin-bottom:6px"><a href="/servers/{{ server.id }}">← {{ server.name }}</a></p>
+<h1>Files <span class="muted" style="font-size:13px">on {{ server.username }}@{{ server.host }}</span></h1>
+
+<div class="row" style="gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+  <div class="row" style="gap:6px;flex-wrap:wrap;font-family:var(--mono);font-size:13px;margin:0">
+    {% for c in crumbs %}{% if not loop.first %}<span class="muted">/</span>{% endif %}<a href="/servers/{{ server.id }}/files?path={{ c.path }}">{{ c.name }}</a>{% endfor %}
+  </div>
+  <a class="btn secondary" style="margin-left:auto;padding:4px 12px;font-size:12px" href="/servers/{{ server.id }}/files?path={{ path }}" title="Reload this directory">↻ Refresh</a>
+</div>
+
+{% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+
+<div class="card" style="padding:12px 16px;margin-bottom:14px">
+  <div class="row" style="gap:16px;flex-wrap:wrap;align-items:center">
+    <form method="post" action="/servers/{{ server.id }}/files/newfile" class="row" style="gap:6px;margin:0">
+      <input type="hidden" name="dir" value="{{ path }}">
+      <input type="text" name="name" placeholder="new-file.txt" style="width:150px;padding:6px 9px">
+      <button class="secondary" style="padding:6px 12px">New file</button>
+    </form>
+    <form method="post" action="/servers/{{ server.id }}/files/mkdir" class="row" style="gap:6px;margin:0">
+      <input type="hidden" name="dir" value="{{ path }}">
+      <input type="text" name="name" placeholder="new-folder" style="width:150px;padding:6px 9px">
+      <button class="secondary" style="padding:6px 12px">New folder</button>
+    </form>
+    <form method="post" action="/servers/{{ server.id }}/files/upload" enctype="multipart/form-data" class="row" style="gap:6px;margin:0">
+      <input type="hidden" name="dir" value="{{ path }}">
+      <input type="file" name="file" multiple>
+      <button style="padding:6px 12px">Upload</button>
+    </form>
+  </div>
+  <div id="dropzone" style="margin-top:10px;border:1.5px dashed var(--rule);border-radius:8px;padding:14px;text-align:center;color:var(--muted);font-size:13px">
+    …or drag &amp; drop files here to upload to <code>{{ path }}</code>
+  </div>
+</div>
+
+<div class="card" style="padding:0;overflow:hidden">
+<table>
+<thead><tr><th style="padding-left:18px">Name</th><th>Size</th><th>Modified</th><th>Mode</th><th style="text-align:right;padding-right:18px">Actions</th></tr></thead>
+<tbody>
+{% if path != '/' %}
+<tr><td colspan="5" style="padding-left:18px"><a href="/servers/{{ server.id }}/files?path={{ parent }}">⬆ ..</a></td></tr>
+{% endif %}
+{% for e in entries %}
+<tr>
+  <td style="padding-left:18px">
+    {% if e.is_dir %}📁 <a href="/servers/{{ server.id }}/files?path={{ path }}/{{ e.name }}">{{ e.name }}/</a>
+    {% else %}{% if e.is_link %}🔗{% else %}📄{% endif %} <span class="mono" style="font-size:13px">{{ e.name }}</span>{% endif %}
+  </td>
+  <td class="muted">{% if e.is_dir %}—{% else %}{{ fsize(e.size) }}{% endif %}</td>
+  <td class="muted">{{ ago(e.mod_time) }}</td>
+  <td class="muted mono" style="font-size:11px">{{ e.mode }}</td>
+  <td style="text-align:right;white-space:nowrap;padding-right:18px">
+    {% if not e.is_dir %}
+      <a class="btn secondary" style="padding:2px 9px;font-size:11px" href="/servers/{{ server.id }}/files/download?path={{ path }}/{{ e.name }}">Download</a>
+      <a class="btn secondary" style="padding:2px 9px;font-size:11px" href="/servers/{{ server.id }}/files/edit?path={{ path }}/{{ e.name }}">Edit</a>
+    {% endif %}
+    <button class="secondary" style="padding:2px 9px;font-size:11px" data-path="{{ path }}/{{ e.name }}" data-name="{{ e.name }}" onclick="renameItem(this)">Rename</button>
+    <button class="secondary" style="padding:2px 9px;font-size:11px" data-path="{{ path }}/{{ e.name }}" data-isdir="{% if e.is_dir %}1{% endif %}" onclick="deleteItem(this)">Delete</button>
+  </td>
+</tr>
+{% else %}
+<tr><td colspan="5" class="muted" style="padding:18px">Empty directory.</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+
+<form id="renameForm" method="post" action="/servers/{{ server.id }}/files/rename" style="display:none">
+  <input type="hidden" name="dir" value="{{ path }}"><input type="hidden" name="path" id="rn-path"><input type="hidden" name="newname" id="rn-new">
+</form>
+<form id="deleteForm" method="post" action="/servers/{{ server.id }}/files/delete" style="display:none">
+  <input type="hidden" name="dir" value="{{ path }}"><input type="hidden" name="path" id="del-path">
+</form>
+<script>
+function renameItem(btn){
+  var pathv = btn.dataset.path, name = btn.dataset.name;
+  var nn = prompt('Rename to:', name);
+  if (!nn || nn === name) return;
+  document.getElementById('rn-path').value = pathv;
+  document.getElementById('rn-new').value = nn;
+  document.getElementById('renameForm').submit();
+}
+function deleteItem(btn){
+  var pathv = btn.dataset.path, isDir = !!btn.dataset.isdir;
+  if (!confirm('Delete ' + pathv + (isDir ? ' and everything inside it?' : '?'))) return;
+  document.getElementById('del-path').value = pathv;
+  document.getElementById('deleteForm').submit();
+}
+const dz = document.getElementById('dropzone');
+if (dz){
+  const stop = e => { e.preventDefault(); e.stopPropagation(); };
+  ['dragenter','dragover','dragleave','drop'].forEach(ev => dz.addEventListener(ev, stop));
+  ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, () => dz.style.borderColor='var(--accent)'));
+  ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, () => dz.style.borderColor='var(--rule)'));
+  dz.addEventListener('drop', e => {
+    const files = e.dataTransfer.files;
+    if (!files.length) return;
+    const fd = new FormData();
+    fd.append('dir', {{ path|tojson }});
+    for (const f of files) fd.append('file', f);
+    dz.textContent = 'Uploading ' + files.length + ' file(s)…';
+    fetch('/servers/{{ server.id }}/files/upload', {method:'POST', body:fd})
+      .then(r => { if (r.ok || r.redirected) location.reload(); else return r.text().then(t=>{throw new Error(t)}); })
+      .catch(err => { dz.textContent = 'Upload failed: ' + err.message; });
+  });
+}
+</script>
+{% endblock %}

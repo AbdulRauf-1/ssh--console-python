@@ -1,0 +1,40 @@
+# Local data (SQLite database, auto-generated master key) — NEVER commit these:
+# the key decrypts your stored SSH credentials and recordings.
+/data/
+*.db
+*.db-shm
+*.db-wal
+*.key
+master.key
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.env
+
+# Internal working notes — not published to GitHub. The public docs are README.md
+# and the code comments; docs/ and new.md are development notes kept locally only.
+/docs/
+/new.md
+
+# Claude Code / AI assistant local files
+.claude/
+CLAUDE.md
+.cursor/
+.aider*
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

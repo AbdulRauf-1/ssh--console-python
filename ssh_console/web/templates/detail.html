@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}{{ server.name }} · SSH Console{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/vendor/xterm.css">
+<p class="muted" style="margin-bottom:6px"><a href="/">← Connections</a></p>
+<div class="pagehead">
+  <h1 style="margin:0">{{ server.name }} <span class="badge s-{{ server.status }}" style="font-size:12px;vertical-align:middle">{{ server.status }}</span></h1>
+</div>
+<div class="metachips" style="margin-top:10px">
+  <span>{{ server.username }}@{{ server.host }}:{{ server.port }}</span>
+  <span>auth: {{ server.auth_type }}</span>
+  <span>checked {{ ago(server.last_checked_at) }}</span>
+  {% if server.host_key_set %}<span>host key pinned</span>{% endif %}
+</div>
+{% if server.last_error %}<div class="notice bad" style="margin-top:12px">{{ server.last_error }}</div>{% endif %}
+
+<div class="card" style="padding:12px 16px;margin-top:14px">
+  <div class="row" style="gap:8px">
+    <form method="post" action="/servers/{{ server.id }}/test" style="margin:0"><button class="secondary" style="padding:6px 13px">Test connection</button></form>
+    <a class="btn secondary" style="padding:6px 13px" href="/servers/{{ server.id }}/files">Browse files</a>
+    <a class="btn secondary" style="padding:6px 13px" href="/servers/{{ server.id }}/edit">Edit</a>
+    <button class="secondary" style="padding:6px 13px" onclick="termConnect()">Reconnect terminal</button>
+    <form method="post" action="/servers/{{ server.id }}/delete" style="margin:0 0 0 auto" onsubmit="return confirm('Delete this connection, its stored credential and its recordings?')"><button class="secondary" style="padding:6px 13px">Delete</button></form>
+  </div>
+</div>
+
+<h2>Terminal</h2>
+<div class="term-shell">
+  <div class="term-shell-bar"><span class="d live"></span><span class="d"></span><span class="d"></span><span class="tt">{{ server.name }} · live</span><span id="term-status" style="margin-left:auto;color:rgba(255,255,255,.55)">connecting…</span></div>
+  <div class="term-shell-body"><div id="term" style="height:460px;width:100%"></div></div>
+</div>
+<p class="muted" style="margin-top:8px;font-size:12.5px">A real interactive shell (a true PTY), so <code>top</code>, <code>vim</code> and <code>less</code> all work. Output is <strong>recorded</strong> and replayable below.</p>
+
+<h2>Run a command</h2>
+<div class="card">
+  <form hx-post="/servers/{{ server.id }}/run" hx-target="#run-output" hx-swap="innerHTML" hx-disabled-elt="find button" hx-indicator="#run-spin">
+    <div class="row" style="gap:8px">
+      <input type="text" name="command" id="cmd-input" placeholder="e.g. sudo systemctl status nginx" class="mono" autocomplete="off">
+      <button type="submit" style="flex-shrink:0">Run</button>
+    </div>
+  </form>
+  <span id="run-spin" class="htmx-indicator muted" style="font-size:12px">running…</span>
+  <div id="run-output"></div>
+  <p class="muted" style="margin:10px 0 4px;font-size:12px">Runs non-interactively and waits for the command to finish (60s cap). Interactive tools (<code>top</code>, <code>vim</code>, <code>less</code>) need the live terminal above, or a one-shot form like <code>top -bn1</code>. Commands run as <code>{{ server.username }}</code>; the ones marked <em>sudo</em> need passwordless sudo for that user.</p>
+
+  <details open style="margin-top:12px;border-top:1px solid var(--rule);padding-top:12px">
+    <summary style="cursor:pointer;font-size:13px;font-weight:600">Commands you can run — click one to load it</summary>
+    <div class="cmd-palette">
+      {% for g in command_groups %}
+      <div class="cmd-group">
+        <div class="cmd-group-title">{{ g.title }}</div>
+        <div class="cmd-chips">
+          {% for item in g.commands %}
+          <button type="button" class="cmd-chip" title="{{ item.help }}" onclick="fillCommand(this.dataset.cmd)" data-cmd="{{ item.cmd }}">{{ item.cmd }}</button>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="muted" style="font-size:12px;margin:10px 0 0">These are examples — you can type any non-interactive command that finishes on its own.</p>
+  </details>
+</div>
+<script>
+function fillCommand(cmd){
+  const box = document.getElementById('cmd-input');
+  if (!box) return;
+  box.value = cmd;
+  box.focus();
+  box.scrollIntoView({block:'center', behavior:'smooth'});
+}
+</script>
+
+<h2>Recorded sessions</h2>
+{% if sessions %}
+<form method="post" action="/recordings/delete" onsubmit="return recConfirmBulk()">
+  <input type="hidden" name="back" value="/servers/{{ server.id }}">
+  <div class="row" style="margin-bottom:10px;gap:10px">
+    <button type="submit" class="secondary" id="recBulkBtn" disabled>Delete selected</button>
+    <span class="muted" id="recBulkCount" style="font-size:13px">none selected</span>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+  <table>
+    <thead><tr>
+      <th style="width:34px;padding-left:18px"><input type="checkbox" onclick="recToggleAll(this)" title="Select all" style="width:auto"></th>
+      <th>Started</th><th>State</th><th>Output</th><th style="padding-right:18px;text-align:right">Actions</th>
+    </tr></thead>
+    <tbody>
+    {% for s in sessions %}
+    <tr>
+      <td style="padding-left:18px"><input type="checkbox" name="session" value="{{ s.id }}" class="recpick" onchange="recUpdate()" style="width:auto"></td>
+      <td class="muted">{{ ago(s.started_at) }}</td>
+      <td>{% if s.ended_at %}<span class="muted">ended</span>{% else %}<span class="badge s-running">live</span>{% endif %}</td>
+      <td class="muted">{{ fsize(s.bytes) }}</td>
+      <td style="padding-right:18px;white-space:nowrap;text-align:right">
+        {% if s.ended_at %}<a href="/recordings/{{ s.id }}">replay →</a>{% endif %}
+        <button type="button" class="secondary" style="padding:2px 9px;font-size:11px;margin-left:8px" onclick="recDeleteOne('{{ s.id }}')">Delete</button>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</form>
+<form id="recOneForm" method="post" style="display:none"><input type="hidden" name="back" value="/servers/{{ server.id }}"></form>
+<script>
+function recPicks(){ return Array.from(document.querySelectorAll('.recpick')); }
+function recUpdate(){
+  var n = recPicks().filter(function(c){return c.checked;}).length;
+  document.getElementById('recBulkBtn').disabled = n === 0;
+  document.getElementById('recBulkCount').textContent = n === 0 ? 'none selected' : n + ' selected';
+}
+function recToggleAll(cb){ recPicks().forEach(function(c){ c.checked = cb.checked; }); recUpdate(); }
+function recConfirmBulk(){
+  var n = recPicks().filter(function(c){return c.checked;}).length;
+  if (n === 0) return false;
+  return confirm('Delete ' + n + ' recording' + (n === 1 ? '' : 's') + '? This cannot be undone.');
+}
+function recDeleteOne(id){
+  if (!confirm('Delete this recording? This cannot be undone.')) return;
+  var f = document.getElementById('recOneForm'); f.action = '/recordings/' + id + '/delete'; f.submit();
+}
+recUpdate();
+</script>
+{% else %}
+<div class="card"><p class="muted" style="margin:0">No sessions recorded yet.</p></div>
+{% endif %}
+
+<script src="/static/vendor/xterm.js"></script>
+<script>
+let term, ws;
+const enc = new TextEncoder();
+function fit(){
+  const el = document.getElementById('term');
+  const cols = Math.max(20, Math.floor(el.clientWidth / 9));
+  const rows = Math.max(6, Math.floor(el.clientHeight / 18));
+  try { term.resize(cols, rows); } catch(e){}
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({cols, rows}));
+}
+function setStatus(t){ document.getElementById('term-status').textContent = t; }
+function termConnect(){
+  if (ws) { try { ws.close(); } catch(e){} }
+  if (!term){
+    term = new Terminal({cursorBlink:true, fontFamily:'ui-monospace,Menlo,Consolas,monospace', fontSize:13, theme:{background:'#000000'}});
+    term.open(document.getElementById('term'));
+    term.onData(d => { if (ws && ws.readyState === 1) ws.send(enc.encode(d)); });
+    window.addEventListener('resize', () => { clearTimeout(window._ft); window._ft = setTimeout(fit, 150); });
+  }
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(proto + '://' + location.host + '/servers/{{ server.id }}/terminal/ws');
+  ws.binaryType = 'arraybuffer';
+  ws.onopen = () => { setStatus('connected'); fit(); term.focus(); };
+  ws.onmessage = ev => {
+    if (typeof ev.data === 'string') term.write(ev.data);
+    else term.write(new Uint8Array(ev.data));
+  };
+  ws.onclose = () => setStatus('disconnected — click “Reconnect terminal”');
+  ws.onerror = () => setStatus('connection error');
+}
+termConnect();
+</script>
+{% endblock %}

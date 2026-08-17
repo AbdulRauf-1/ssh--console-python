@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Session replay · SSH Console{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/vendor/xterm.css">
+<p class="muted" style="margin-bottom:6px"><a href="/servers/{{ session.server_id }}">← {{ session.server_name }}</a></p>
+<div class="pagehead">
+  <h1 style="margin:0">Session replay</h1>
+  <form method="post" action="/recordings/{{ session.id }}/delete" onsubmit="return confirm('Delete this recording?')"><button class="secondary">Delete recording</button></form>
+</div>
+<div class="metachips" style="margin-top:10px">
+  <span>{{ session.server_name }}</span>
+  <span>{{ ago(session.started_at) }}</span>
+  {% if duration_label %}<span>lasted {{ duration_label }}</span>{% endif %}
+  <span>{{ fsize(session.bytes) }} output</span>
+</div>
+
+<h2>Recording</h2>
+<div class="term-shell">
+  <div class="term-shell-bar"><span class="d"></span><span class="d"></span><span class="d"></span><span class="tt">{{ session.server_name }} · replay</span></div>
+  <div class="term-shell-body"><div id="term" style="height:520px;width:100%"></div></div>
+</div>
+
+<div class="rec-controls" id="recControls">
+  <button type="button" id="playBtn" class="secondary" onclick="rp.toggle()">▶ Play</button>
+  <input type="range" id="seek" min="0" value="0" step="1" aria-label="Seek">
+  <span class="rec-time"><span id="tElapsed">0:00</span> / <span id="tTotal">0:00</span></span>
+  <span class="rec-speed">
+    <button type="button" data-s="1" class="active" onclick="rp.speed(1)">1×</button>
+    <button type="button" data-s="2" onclick="rp.speed(2)">2×</button>
+    <button type="button" data-s="4" onclick="rp.speed(4)">4×</button>
+  </span>
+</div>
+<p class="muted" style="margin-top:10px;font-size:12.5px">Plays back the whole session with its original timing — the shell's own echo shows what was typed. Use the slider to scrub, or speed it up. Recordings are capped; very long sessions are truncated.</p>
+
+<script src="/static/vendor/xterm.js"></script>
+<script>
+var RAW = {{ recording|tojson }};
+var rp = (function(){
+  var term = new Terminal({fontFamily:'ui-monospace,Menlo,Consolas,monospace', fontSize:13, disableStdin:true,
+    theme:{background:'#000000'}, cols:100, rows:32, scrollback:8000});
+  term.open(document.getElementById('term'));
+
+  var data = null;
+  try { data = JSON.parse(RAW); } catch(e){}
+
+  // Legacy / non-timed recording: just write it all and hide the controls.
+  if (!data || !Array.isArray(data.events)) {
+    term.write(RAW || '');
+    var c = document.getElementById('recControls'); if (c) c.style.display = 'none';
+    return { toggle:function(){}, speed:function(){} };
+  }
+
+  var events = data.events;                 // [[tMs, base64], ...]
+  var total = data.duration || (events.length ? events[events.length-1][0] : 0);
+  var idx = 0, playing = false, speed = 1, wallStart = 0, virtStart = 0, raf = 0;
+
+  var seek = document.getElementById('seek');
+  var elEl = document.getElementById('tElapsed'), tot = document.getElementById('tTotal'), btn = document.getElementById('playBtn');
+  seek.max = total || 1;
+  tot.textContent = fmt(total);
+
+  function fmt(ms){ var s = Math.max(0, Math.floor(ms/1000)), m = Math.floor(s/60); s = s%60; return m + ':' + (s<10?'0':'') + s; }
+  function b2u(b64){ var s = atob(b64), u = new Uint8Array(s.length); for (var i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; }
+  function virtNow(){ return playing ? virtStart + (performance.now()-wallStart)*speed : virtStart; }
+  function setBtn(){ btn.textContent = playing ? '⏸ Pause' : (idx>=events.length ? '↻ Replay' : '▶ Play'); }
+
+  function writeUpTo(v){
+    while (idx < events.length && events[idx][0] <= v){ term.write(b2u(events[idx][1])); idx++; }
+    seek.value = Math.min(v, total);
+    elEl.textContent = fmt(Math.min(v, total));
+  }
+  function frame(){
+    if (!playing) return;
+    var v = virtNow();
+    writeUpTo(v);
+    if (idx >= events.length){ playing = false; elEl.textContent = fmt(total); seek.value = total; setBtn(); return; }
+    raf = requestAnimationFrame(frame);
+  }
+  function start(from){ term.reset(); idx = 0; virtStart = from||0; if (from) writeUpTo(from); playing = true; wallStart = performance.now(); setBtn(); raf = requestAnimationFrame(frame); }
+
+  seek.addEventListener('input', function(){
+    var v = +seek.value;
+    cancelAnimationFrame(raf); playing = false;
+    // scrubbing backward needs a reset (terminal state is cumulative)
+    term.reset(); idx = 0; virtStart = v; writeUpTo(v); setBtn();
+  });
+
+  // autoplay on load
+  start(0);
+
+  return {
+    toggle: function(){
+      if (playing){ virtStart = virtNow(); playing = false; cancelAnimationFrame(raf); setBtn(); }
+      else if (idx >= events.length){ start(0); }
+      else { playing = true; wallStart = performance.now(); setBtn(); raf = requestAnimationFrame(frame); }
+    },
+    speed: function(s){
+      if (playing){ virtStart = virtNow(); wallStart = performance.now(); }
+      speed = s;
+      document.querySelectorAll('.rec-speed button').forEach(function(b){ b.classList.toggle('active', +b.dataset.s === s); });
+    }
+  };
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ server.name }} · SSH Console{% endblock %}
+{% block content %}
+<p class="muted" style="margin-bottom:6px"><a href="/servers/{{ server.id }}">← {{ server.name }}</a></p>
+<h1>Edit connection</h1>
+
+<div class="card">
+<form method="post" action="/servers/{{ server.id }}/edit">
+  <div class="grid" style="grid-template-columns:2fr 3fr 1fr;gap:14px">
+    <div><label>Name</label><input type="text" name="name" value="{{ server.name }}" required></div>
+    <div><label>Host</label><input type="text" name="host" value="{{ server.host }}" required></div>
+    <div><label>Port</label><input type="number" name="port" value="{{ server.port }}"></div>
+  </div>
+  <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
+    <div><label>Login user</label><input type="text" name="username" value="{{ server.username }}" required></div>
+    <div><label>Authentication</label>
+      <select name="auth_type" id="auth_type" onchange="authToggle()">
+        <option value="key"{% if server.auth_type == 'key' %} selected{% endif %}>Private key</option>
+        <option value="password"{% if server.auth_type == 'password' %} selected{% endif %}>Password</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="key-fields">
+    <label>Replace private key <span class="muted">— leave blank to keep the current one</span></label>
+    <div class="row" style="gap:10px;align-items:center;margin-bottom:8px">
+      <label class="btn secondary" style="cursor:pointer;margin:0;padding:8px 14px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;vertical-align:-2px;margin-right:6px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Upload new key file
+        <input type="file" id="keyfile" onchange="loadKeyFile(this)" style="display:none">
+      </label>
+      <span class="muted" id="keyfilename" style="font-size:13px">No file chosen — leave blank to keep the stored key</span>
+    </div>
+    <details id="keypaste">
+      <summary class="muted" style="cursor:pointer;font-size:12.5px">…or paste a new key instead</summary>
+      <textarea name="secret" id="keytext" style="margin-top:8px" placeholder="Leave blank to keep the stored key"></textarea>
+    </details>
+    <label>Key passphrase <span class="muted">(optional)</span></label>
+    <input type="password" name="passphrase" autocomplete="off">
+  </div>
+  <div id="password-fields" style="display:none">
+    <label>Replace password <span class="muted">— leave blank to keep the current one</span></label>
+    <input type="password" name="secret_pw" autocomplete="off">
+  </div>
+
+  <label style="font-weight:normal;margin-top:14px"><input type="checkbox" name="reset_host_key" style="width:auto"> Re-pin host key (use after rebuilding the server or rotating its key)</label>
+
+  <div style="margin-top:16px" class="row">
+    <button type="submit">Save changes</button>
+    <a class="btn secondary" href="/servers/{{ server.id }}">Cancel</a>
+  </div>
+  <p class="muted" style="font-size:12.5px;margin:12px 0 0">The stored credential is never shown back. Leaving the credential blank keeps whatever is stored.</p>
+</form>
+</div>
+
+<script>
+function authToggle(){
+  var t = document.getElementById('auth_type').value;
+  document.getElementById('key-fields').style.display = t === 'key' ? '' : 'none';
+  document.getElementById('password-fields').style.display = t === 'password' ? '' : 'none';
+}
+function loadKeyFile(inp){
+  var f = inp.files && inp.files[0]; if (!f) return;
+  var rd = new FileReader();
+  rd.onload = function(e){
+    document.getElementById('keytext').value = e.target.result;
+    document.getElementById('keyfilename').innerHTML = '<strong>' + f.name + '</strong> loaded ✓';
+  };
+  rd.readAsText(f);
+}
+document.querySelector('form').addEventListener('submit', function(){
+  if (document.getElementById('auth_type').value === 'password') {
+    var pw = document.querySelector('input[name="secret_pw"]').value;
+    document.getElementById('keytext').value = pw; // may be blank = keep
+  }
+});
+authToggle();
+</script>
+{% endblock %}

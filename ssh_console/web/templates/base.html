@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}SSH Console{% endblock %}</title>
+<link rel="icon" href="/static/favicon.svg">
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/vendor/htmx.min.js"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <a class="side-brand" href="/">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse"><stop stop-color="#1FC894"/><stop offset="1" stop-color="#0C8F68"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#lg)"/><g stroke="#fff" stroke-width="1.9" stroke-linecap="round" opacity=".92"><line x1="16" y1="16" x2="16" y2="8"/><line x1="16" y1="16" x2="9" y2="23"/><line x1="16" y1="16" x2="23" y2="23"/></g><g fill="#fff"><circle cx="16" cy="16" r="3.4"/><circle cx="16" cy="7.4" r="2.2"/><circle cx="9" cy="23.2" r="2.2"/><circle cx="23" cy="23.2" r="2.2"/></g></svg>
+      SSH Console
+    </a>
+
+    <a class="side-add {% if nav == 'servers' and not active_id %}active{% endif %}" href="/">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add connection
+    </a>
+
+    <div class="side-label">SSH connections</div>
+    <nav class="side-nav">
+      {% for s in sidebar_servers %}
+      <div class="side-item {% if s.id == active_id %}active{% endif %}">
+        <a href="/servers/{{ s.id }}" class="side-link" title="{{ s.username }}@{{ s.host }}:{{ s.port }}">
+          <span class="dot s-{{ s.status }}"></span>
+          <span class="side-name">{{ s.name }}</span>
+        </a>
+        <button type="button" class="side-kebab" aria-label="Options for {{ s.name }}" onclick="sideMenu(event,'{{ s.id }}')">
+          <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+        </button>
+        <div class="side-pop" id="pop-{{ s.id }}">
+          <button type="button" class="pop-btn" onclick="renameConn('{{ s.id }}',this.dataset.name)" data-name="{{ s.name }}">Rename</button>
+          <button type="button" class="pop-btn danger" onclick="deleteConn('{{ s.id }}',this.dataset.name)" data-name="{{ s.name }}">Delete</button>
+        </div>
+      </div>
+      {% else %}
+      <div class="side-empty">No connections yet</div>
+      {% endfor %}
+    </nav>
+
+    <div class="side-foot">
+      <a href="/recordings" class="{% if nav == 'recordings' %}active{% endif %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>
+        Recordings
+      </a>
+    </div>
+  </aside>
+
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<form id="connRenameForm" method="post" style="display:none"><input type="hidden" name="name" id="connRenameName"></form>
+<form id="connDeleteForm" method="post" style="display:none"></form>
+<script>
+  function sideMenu(ev, id){
+    ev.preventDefault(); ev.stopPropagation();
+    var pop = document.getElementById('pop-' + id);
+    var open = pop.classList.contains('open');
+    document.querySelectorAll('.side-pop.open').forEach(function(p){ p.classList.remove('open'); });
+    if (!open) pop.classList.add('open');
+  }
+  document.addEventListener('click', function(){ document.querySelectorAll('.side-pop.open').forEach(function(p){ p.classList.remove('open'); }); });
+  function renameConn(id, name){
+    var nn = prompt('Rename connection', name);
+    if (!nn || nn.trim() === '' || nn === name) return;
+    var f = document.getElementById('connRenameForm');
+    f.action = '/servers/' + id + '/rename';
+    document.getElementById('connRenameName').value = nn.trim();
+    f.submit();
+  }
+  function deleteConn(id, name){
+    if (!confirm('Delete "' + name + '", its stored credential and its recordings? This cannot be undone.')) return;
+    var f = document.getElementById('connDeleteForm');
+    f.action = '/servers/' + id + '/delete';
+    f.submit();
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ name }} · SSH Console{% endblock %}
+{% block content %}
+<p class="muted" style="margin-bottom:6px"><a href="/servers/{{ server.id }}/files?path={{ dir }}">← {{ dir }}</a></p>
+<h1 class="mono" style="font-size:16px">{{ path }}</h1>
+<div class="muted" style="margin-bottom:12px">{{ server.username }}@{{ server.host }}</div>
+
+{% if error %}<div class="notice bad">{{ error }}</div>{% else %}
+<form method="post" action="/servers/{{ server.id }}/files/edit">
+  <input type="hidden" name="path" value="{{ path }}">
+  <textarea name="content" spellcheck="false" style="width:100%;height:60vh;background:#0b0f0d;color:#d7e2dc;border-radius:8px;padding:14px;line-height:1.5">{{ content }}</textarea>
+  <div class="row" style="gap:8px;margin-top:12px">
+    <button type="submit">Save to server</button>
+    <a class="btn secondary" href="/servers/{{ server.id }}/files?path={{ dir }}">Cancel</a>
+  </div>
+  <p class="muted" style="margin-top:10px;font-size:12.5px">Saving overwrites the file on the server directly — no snapshot, no rollback. Keep a copy of anything you care about before editing here. Binary files and files over 1 MiB are refused.</p>
+</form>
+{% endif %}
+{% endblock %}

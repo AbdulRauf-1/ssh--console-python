@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ssh-console"
+version = "0.1.0"
+description = "A local, single-user web console for SSH sessions — with recording. (Python port.)"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Abdul Rauf" }]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "asyncssh>=2.14",
+    "cryptography>=42.0",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+]
+
+# No console-script / executable on purpose — run the project as a module
+# (`python -m ssh_console`) or via Docker. See the README.
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+
+[tool.setuptools]
+packages = ["ssh_console", "ssh_console.remote", "ssh_console.web"]
+
+[tool.setuptools.package-data]
+"ssh_console.web" = [
+    "templates/*.html",
+    "static/*",
+    "static/vendor/*",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

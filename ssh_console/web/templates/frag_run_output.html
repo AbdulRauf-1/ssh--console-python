@@ -1,0 +1,6 @@
+{% if last_command %}
+<div style="margin-top:12px">
+  <div class="muted mono" style="font-size:12px;margin-bottom:4px">$ {{ last_command }}</div>
+  <pre>{{ last_output }}</pre>
+</div>
+{% endif %}
