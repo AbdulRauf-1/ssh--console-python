@@ -183,15 +183,28 @@ changes are needed.
 
 ### Option B — expose it on the server's public IP
 
-Only if you understand the risk (see the warning). First **build the image**, then
-run it published on **all interfaces**:
+Only if you understand the risk (see the warning). **Note:** plain `docker compose
+up -d` binds to `127.0.0.1` (loopback only), so it is **not** reachable at
+`your-server-ip:8022` — that's by design. To expose it, do one of:
+
+**With Compose (easiest) — set `SSHCONSOLE_BIND`:**
+
+```bash
+SSHCONSOLE_BIND=0.0.0.0 docker compose up -d
+```
+
+(Change the host port too with `SSHCONSOLE_HOST_PORT=9000`; the container side stays
+8022.)
+
+**Or with plain Docker** — build first, then publish on all interfaces:
 
 ```bash
 docker build -t ssh-console .
 docker run -d --name ssh-console -p 8022:8022 -v ssh-console-data:/data ssh-console
 ```
 
-Confirm it's up, then reach it from your laptop at **`http://YOUR_SERVER_PUBLIC_IP:8022`**.
+Either way, confirm it's up (`docker ps` should show `0.0.0.0:8022->8022/tcp`), then
+reach it from your laptop at **`http://YOUR_SERVER_PUBLIC_IP:8022`**.
 
 > **Three mistakes to avoid** (each gives a confusing Docker error):
 >

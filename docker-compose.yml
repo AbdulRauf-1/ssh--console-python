@@ -1,8 +1,9 @@
 # SSH Console (Python) — the whole thing in one container. No database service:
 # storage is a local SQLite file kept in the `data` volume.
 #
-#   docker compose up -d      then open http://127.0.0.1:8022
-#   docker compose down       stops it; the volume (your data) remains
+#   docker compose up -d                          loopback only (use an SSH tunnel)
+#   SSHCONSOLE_BIND=0.0.0.0 docker compose up -d   reachable on the server's public IP
+#   docker compose down                           stops it; the volume (your data) remains
 
 name: ssh-console-py
 
@@ -11,12 +12,14 @@ services:
     build: .
     image: ssh-console-py:latest
     restart: unless-stopped
-    # Bound to loopback on purpose: a tool that opens shells should not sit on a
-    # public interface. Change deliberately, and put auth + TLS in front if you do.
-    # Left side = the port on YOUR machine; change it freely. Right side must stay
-    # 8022 (the port inside the container).
+    # Publish "<bind>:<host-port>:8022".
+    #   - Defaults to 127.0.0.1 (loopback only) on purpose: the app has NO login, so
+    #     it must not sit on a public interface unless you mean it.
+    #   - To expose it on the server's public IP (VPS/EC2), set SSHCONSOLE_BIND=0.0.0.0
+    #     and open the port in your firewall / cloud Security Group.
+    #   - Change the host port with SSHCONSOLE_HOST_PORT; the container side stays 8022.
     ports:
-      - "127.0.0.1:8022:8022"
+      - "${SSHCONSOLE_BIND:-127.0.0.1}:${SSHCONSOLE_HOST_PORT:-8022}:8022"
     volumes:
       - data:/data
     # Optional: cap concurrent live terminals (0/unset = unlimited).
