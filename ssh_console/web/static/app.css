@@ -20,8 +20,11 @@
   --r-sm: 9px;
   --shadow: 0 1px 2px rgba(16,33,28,.05), 0 8px 24px -14px rgba(16,33,28,.25);
 }
+/* Dark palette. Applied when the OS prefers dark AND the user hasn't forced light
+   with the top-right toggle, OR when the user explicitly toggles dark. Light is the
+   base :root above, so forcing light just disables the dark rules below. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg:      #0E1512;
     --raised:  #16201C;
     --sunk:    #111A16;
@@ -36,6 +39,21 @@
     --bad:     #F87171;
     --shadow: 0 1px 2px rgba(0,0,0,.4), 0 16px 34px -16px rgba(0,0,0,.7);
   }
+}
+:root[data-theme="dark"] {
+  --bg:      #0E1512;
+  --raised:  #16201C;
+  --sunk:    #111A16;
+  --ink:     #E7EEE9;
+  --muted:   #93A79E;
+  --rule:    #223029;
+  --accent:  #34D6A0;
+  --accent-ink:#4FE3B0;
+  --accent-soft: rgba(52,214,160,.14);
+  --ok:      #34D6A0;
+  --warn:    #E0A64D;
+  --bad:     #F87171;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 16px 34px -16px rgba(0,0,0,.7);
 }
 
 * { box-sizing: border-box; }
@@ -151,6 +169,21 @@ input[type=text], input[type=password], input[type=number], input[type=email], t
   border-radius: var(--r-sm); padding: 9px 12px; font: inherit;
 }
 input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+/* Browser autofill (Chrome/Edge/Safari) otherwise paints username / password /
+   passphrase fields with its own pale background, ignoring the theme — most visible
+   as light fields on the dark surface. Force the themed colours instead. The inset
+   box-shadow trick repaints the field background; the long transition stops the
+   autofill colour from flashing in. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--ink);
+  caret-color: var(--ink);
+  -webkit-box-shadow: 0 0 0 1000px var(--raised) inset;
+  box-shadow: 0 0 0 1000px var(--raised) inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
 textarea { font-family: var(--mono); font-size: 13px; min-height: 120px; }
 button, .btn {
   display: inline-block; background: var(--accent-ink); color: #fff; border: 1px solid transparent;
@@ -162,12 +195,13 @@ button, .btn {
 button:hover, .btn:hover { background: color-mix(in srgb, var(--accent-ink) 86%, #000); text-decoration: none; }
 button.secondary, .btn.secondary { background: var(--raised); border: 1px solid var(--rule); color: var(--ink); font-weight: 600; }
 button.secondary:hover, .btn.secondary:hover { background: var(--sunk); }
+/* Dark text only on the emerald PRIMARY buttons. Transparent-background buttons
+   (chip, sidebar kebab, popup menu items, the theme toggle) are excluded —
+   otherwise they get near-black text on a dark surface and vanish until :hover. */
 @media (prefers-color-scheme: dark) {
-  /* Dark text only on the emerald PRIMARY buttons. Transparent-background buttons
-     (chip, sidebar kebab, popup menu items) are excluded — otherwise they get
-     near-black text on a dark surface and vanish until :hover. */
-  button:not(.secondary):not(.cmd-chip):not(.side-kebab):not(.pop-btn):not([data-s]), .btn:not(.secondary) { color: #06110D; }
+  :root:not([data-theme="light"]) :is(button:not(.secondary):not(.cmd-chip):not(.side-kebab):not(.pop-btn):not(.theme-toggle):not([data-s]), .btn:not(.secondary)) { color: #06110D; }
 }
+:root[data-theme="dark"] :is(button:not(.secondary):not(.cmd-chip):not(.side-kebab):not(.pop-btn):not(.theme-toggle):not([data-s]), .btn:not(.secondary)) { color: #06110D; }
 .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 
@@ -184,9 +218,23 @@ pre { background: #0b0f0d; color: #d7e2dc; border-radius: 8px; padding: 14px; ov
 .s-unknown, .s-running { background: var(--sunk); color: var(--muted); }
 .s-offline, .s-auth_failed, .s-hostkey_mismatch { background: #FBE0DC; color: #A32B1D; }
 @media (prefers-color-scheme: dark) {
-  .s-online { background: rgba(52,214,160,.16); color: #7FEBC4; }
-  .s-offline, .s-auth_failed, .s-hostkey_mismatch { background: rgba(248,113,113,.16); color: #FCA5A5; }
+  :root:not([data-theme="light"]) .s-online { background: rgba(52,214,160,.16); color: #7FEBC4; }
+  :root:not([data-theme="light"]) .s-offline, :root:not([data-theme="light"]) .s-auth_failed, :root:not([data-theme="light"]) .s-hostkey_mismatch { background: rgba(248,113,113,.16); color: #FCA5A5; }
 }
+:root[data-theme="dark"] .s-online { background: rgba(52,214,160,.16); color: #7FEBC4; }
+:root[data-theme="dark"] .s-offline, :root[data-theme="dark"] .s-auth_failed, :root[data-theme="dark"] .s-hostkey_mismatch { background: rgba(248,113,113,.16); color: #FCA5A5; }
+
+/* Theme toggle — fixed at the top-right, above the content */
+.theme-toggle {
+  position: fixed; top: 14px; right: 16px; z-index: 60;
+  width: 38px; height: 38px; border-radius: 10px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--raised); border: 1px solid var(--rule); color: var(--ink);
+  cursor: pointer; box-shadow: var(--shadow);
+}
+.theme-toggle:hover { background: var(--sunk); }
+.theme-toggle svg { width: 18px; height: 18px; }
+@media (max-width: 720px) { .theme-toggle { top: 10px; right: 10px; } }
 
 /* Empty-state + notices */
 .notice { border-left: 3px solid var(--accent); background: var(--accent-soft); color: var(--ink); padding: 10px 14px; border-radius: var(--r-sm); margin-bottom: 16px; font-size: 14px; }

@@ -82,18 +82,20 @@ function fillCommand(cmd){
   <table>
     <thead><tr>
       <th style="width:34px;padding-left:18px"><input type="checkbox" onclick="recToggleAll(this)" title="Select all" style="width:auto"></th>
-      <th>Started</th><th>State</th><th>Output</th><th style="padding-right:18px;text-align:right">Actions</th>
+      <th>Name</th><th>Started</th><th>State</th><th>Output</th><th style="padding-right:18px;text-align:right">Actions</th>
     </tr></thead>
     <tbody>
     {% for s in sessions %}
     <tr>
       <td style="padding-left:18px"><input type="checkbox" name="session" value="{{ s.id }}" class="recpick" onchange="recUpdate()" style="width:auto"></td>
+      <td>{% if s.name %}{{ s.name }}{% else %}<span class="muted">Untitled</span>{% endif %}</td>
       <td class="muted">{{ ago(s.started_at) }}</td>
       <td>{% if s.ended_at %}<span class="muted">ended</span>{% else %}<span class="badge s-running">live</span>{% endif %}</td>
       <td class="muted">{{ fsize(s.bytes) }}</td>
       <td style="padding-right:18px;white-space:nowrap;text-align:right">
         {% if s.ended_at %}<a href="/recordings/{{ s.id }}">replay →</a>{% endif %}
-        <button type="button" class="secondary" style="padding:2px 9px;font-size:11px;margin-left:8px" onclick="recDeleteOne('{{ s.id }}')">Delete</button>
+        <button type="button" class="secondary" style="padding:2px 9px;font-size:11px;margin-left:8px" onclick="recRenameOne('{{ s.id }}',this.dataset.name)" data-name="{{ s.name }}">Rename</button>
+        <button type="button" class="secondary" style="padding:2px 9px;font-size:11px;margin-left:6px" onclick="recDeleteOne('{{ s.id }}')">Delete</button>
       </td>
     </tr>
     {% endfor %}
@@ -102,7 +104,16 @@ function fillCommand(cmd){
   </div>
 </form>
 <form id="recOneForm" method="post" style="display:none"><input type="hidden" name="back" value="/servers/{{ server.id }}"></form>
+<form id="recRenameForm" method="post" style="display:none"><input type="hidden" name="back" value="/servers/{{ server.id }}"><input type="hidden" name="name" id="recRenameName"></form>
 <script>
+function recRenameOne(id, current){
+  var nn = prompt('Name this recording (leave blank to clear):', current || '');
+  if (nn === null) return;
+  var f = document.getElementById('recRenameForm');
+  f.action = '/recordings/' + id + '/rename';
+  document.getElementById('recRenameName').value = nn.trim();
+  f.submit();
+}
 function recPicks(){ return Array.from(document.querySelectorAll('.recpick')); }
 function recUpdate(){
   var n = recPicks().filter(function(c){return c.checked;}).length;

@@ -4,9 +4,22 @@
 <link rel="stylesheet" href="/static/vendor/xterm.css">
 <p class="muted" style="margin-bottom:6px"><a href="/servers/{{ session.server_id }}">← {{ session.server_name }}</a></p>
 <div class="pagehead">
-  <h1 style="margin:0">Session replay</h1>
-  <form method="post" action="/recordings/{{ session.id }}/delete" onsubmit="return confirm('Delete this recording?')"><button class="secondary">Delete recording</button></form>
+  <h1 style="margin:0">{% if session.name %}{{ session.name }}{% else %}Session replay{% endif %}</h1>
+  <div class="row" style="gap:8px">
+    <button type="button" class="secondary" onclick="renameThis()">Rename</button>
+    <form method="post" action="/recordings/{{ session.id }}/delete" onsubmit="return confirm('Delete this recording?')" style="margin:0"><button class="secondary">Delete recording</button></form>
+  </div>
 </div>
+<form id="replayRenameForm" method="post" action="/recordings/{{ session.id }}/rename" style="display:none"><input type="hidden" name="back" value="/recordings/{{ session.id }}"><input type="hidden" name="name" id="replayRenameName"></form>
+<script>
+function renameThis(){
+  var cur = {{ session.name|tojson }};
+  var nn = prompt('Name this recording (leave blank to clear):', cur || '');
+  if (nn === null) return;
+  document.getElementById('replayRenameName').value = nn.trim();
+  document.getElementById('replayRenameForm').submit();
+}
+</script>
 <div class="metachips" style="margin-top:10px">
   <span>{{ session.server_name }}</span>
   <span>{{ ago(session.started_at) }}</span>
@@ -50,8 +63,19 @@ var rp = (function(){
     return { toggle:function(){}, speed:function(){} };
   }
 
-  var events = data.events;                 // [[tMs, base64], ...]
-  var total = data.duration || (events.length ? events[events.length-1][0] : 0);
+  // Rebuild a watchable timeline: start at 0 (drop the dead-air before the first
+  // output, e.g. the ~1s SSH login-banner delay) and cap idle gaps so a long pause
+  // (you thinking between commands) doesn't look like the player has stalled.
+  var IDLE_CAP = 2000; // ms
+  var events = (function(){
+    var src = data.events, out = [], t = 0, prev = src.length ? src[0][0] : 0;
+    for (var k = 0; k < src.length; k++){
+      var gap = src[k][0] - prev; if (gap < 0) gap = 0; if (gap > IDLE_CAP) gap = IDLE_CAP;
+      t += gap; out.push([t, src[k][1]]); prev = src[k][0];
+    }
+    return out;
+  })();
+  var total = events.length ? events[events.length-1][0] : 0;
   var idx = 0, playing = false, speed = 1, wallStart = 0, virtStart = 0, raf = 0;
 
   var seek = document.getElementById('seek');

@@ -7,14 +7,14 @@
 {% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
 
 <div class="card">
-<form method="post" action="/servers">
+<form method="post" action="/servers" autocomplete="off">
   <div class="grid" style="grid-template-columns:2fr 3fr 1fr;gap:14px">
     <div><label>Name</label><input type="text" name="name" placeholder="prod-web" autocomplete="off" required></div>
     <div><label>Host</label><input type="text" name="host" placeholder="203.0.113.10 or host.example.com" autocomplete="off" required></div>
     <div><label>Port</label><input type="number" name="port" value="22"></div>
   </div>
   <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
-    <div><label>Login user</label><input type="text" name="username" placeholder="ubuntu / root" autocomplete="off" required></div>
+    <div><label>Login user</label><input type="text" name="username" placeholder="ubuntu / root" autocomplete="off" required readonly onfocus="this.removeAttribute('readonly')"></div>
     <div><label>Authentication</label>
       <select name="auth_type" id="auth_type" onchange="authToggle()">
         <option value="key">Private key</option>
@@ -36,11 +36,11 @@
       <textarea name="secret" id="keytext" style="margin-top:8px" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"></textarea>
     </details>
     <label>Key passphrase <span class="muted">(optional — only if the key is encrypted)</span></label>
-    <input type="password" name="passphrase" autocomplete="off">
+    <input type="password" name="passphrase" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')">
   </div>
   <div id="password-fields" style="display:none">
     <label>Password</label>
-    <input type="password" name="secret_pw" autocomplete="off">
+    <input type="password" name="secret_pw" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')">
   </div>
   <div style="margin-top:16px"><button type="submit">Add connection</button></div>
   <p class="muted" style="font-size:12.5px;margin:12px 0 0">The credential is encrypted before it is stored. The server's host key is pinned on first connect; if it later changes, the connection is refused.</p>

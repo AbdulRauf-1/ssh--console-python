@@ -70,6 +70,14 @@ def _is_hostkey_error(e: Exception) -> bool:
     return isinstance(e, cls) or type(e).__name__ == "HostKeyNotVerifiable"
 
 
+def _is_timeout(e: Exception) -> bool:
+    """Whether a connect error is a network timeout (host down / firewall), as opposed
+    to auth or a host-key mismatch. Used only to phrase a clearer message."""
+    if isinstance(e, (asyncio.TimeoutError, socket.timeout, TimeoutError)):
+        return True
+    return "timeout" in str(e).lower()
+
+
 class Manager:
     """Owns the one dial-and-pin path."""
 
@@ -151,8 +159,14 @@ class Manager:
                 self._store.update_ssh_server_status(id, "hostkey_mismatch", str(HostKeyMismatch()))
                 raise HostKeyMismatch() from e
             status = self._classify(e)
-            self._store.update_ssh_server_status(id, status, str(e))
-            raise ManagerError(str(e)) from e
+            msg = str(e)
+            if _is_timeout(e):
+                # A timeout is almost always the network, not SSH Console.
+                msg = (f"could not reach {conn_meta.host}:{conn_meta.port} within "
+                       f"{_DIAL_TIMEOUT}s — check the server is running and that port "
+                       f"{conn_meta.port} is open to this machine (firewall / cloud security group)")
+            self._store.update_ssh_server_status(id, status, msg)
+            raise ManagerError(msg) from e
 
         # Trust-on-first-use: persist the host key the first time we see it.
         if not pinned:

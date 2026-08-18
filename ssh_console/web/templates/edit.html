@@ -5,14 +5,14 @@
 <h1>Edit connection</h1>
 
 <div class="card">
-<form method="post" action="/servers/{{ server.id }}/edit">
+<form method="post" action="/servers/{{ server.id }}/edit" autocomplete="off">
   <div class="grid" style="grid-template-columns:2fr 3fr 1fr;gap:14px">
     <div><label>Name</label><input type="text" name="name" value="{{ server.name }}" required></div>
     <div><label>Host</label><input type="text" name="host" value="{{ server.host }}" required></div>
     <div><label>Port</label><input type="number" name="port" value="{{ server.port }}"></div>
   </div>
   <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
-    <div><label>Login user</label><input type="text" name="username" value="{{ server.username }}" required></div>
+    <div><label>Login user</label><input type="text" name="username" value="{{ server.username }}" required autocomplete="off" readonly onfocus="this.removeAttribute('readonly')"></div>
     <div><label>Authentication</label>
       <select name="auth_type" id="auth_type" onchange="authToggle()">
         <option value="key"{% if server.auth_type == 'key' %} selected{% endif %}>Private key</option>
@@ -35,11 +35,11 @@
       <textarea name="secret" id="keytext" style="margin-top:8px" placeholder="Leave blank to keep the stored key"></textarea>
     </details>
     <label>Key passphrase <span class="muted">(optional)</span></label>
-    <input type="password" name="passphrase" autocomplete="off">
+    <input type="password" name="passphrase" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')">
   </div>
   <div id="password-fields" style="display:none">
     <label>Replace password <span class="muted">— leave blank to keep the current one</span></label>
-    <input type="password" name="secret_pw" autocomplete="off">
+    <input type="password" name="secret_pw" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')">
   </div>
 
   <label style="font-weight:normal;margin-top:14px"><input type="checkbox" name="reset_host_key" style="width:auto"> Re-pin host key (use after rebuilding the server or rotating its key)</label>

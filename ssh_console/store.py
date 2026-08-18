@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS terminal_sessions (
   started_at    INTEGER NOT NULL,
   ended_at      INTEGER,
   bytes         INTEGER NOT NULL DEFAULT 0,
-  recording_enc BLOB
+  recording_enc BLOB,
+  name          TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_server ON terminal_sessions(server_id);
 """
@@ -90,6 +91,7 @@ class Session:
     started_at: datetime
     ended_at: datetime | None
     bytes: int = 0
+    name: str = ""  # optional user-given label; empty until renamed
 
 
 def _now() -> int:
@@ -117,6 +119,12 @@ class Store:
         self._db.execute("PRAGMA foreign_keys=ON")
         self._db.execute("PRAGMA journal_mode=WAL")
         self._db.executescript(_SCHEMA)
+        # Add-column migration for databases created before the column existed.
+        # SQLite has no "ADD COLUMN IF NOT EXISTS"; a duplicate is expected/ignored.
+        try:
+            self._db.execute("ALTER TABLE terminal_sessions ADD COLUMN name TEXT")
+        except sqlite3.OperationalError:
+            pass
         self._db.commit()
 
     def close(self) -> None:
@@ -281,13 +289,14 @@ class Store:
             )
             self._db.commit()
 
-    _SESSION_COLS = "id,server_id,server_name,started_at,ended_at,bytes"
+    _SESSION_COLS = "id,server_id,server_name,started_at,ended_at,bytes,name"
 
     @staticmethod
     def _row_to_session(r) -> Session:
         return Session(
             id=r[0], server_id=r[1], server_name=r[2],
             started_at=_unix_to_dt(r[3]), ended_at=_unix_to_dt(r[4]), bytes=r[5],
+            name=r[6] or "",
         )
 
     def list_sessions(self, server_id: str = "") -> list[Session]:
@@ -306,7 +315,7 @@ class Store:
         """A session's metadata and its decrypted transcript."""
         with self._lock:
             r = self._db.execute(
-                "SELECT id,server_id,server_name,started_at,ended_at,bytes,recording_enc"
+                "SELECT id,server_id,server_name,started_at,ended_at,bytes,name,recording_enc"
                 " FROM terminal_sessions WHERE id=?", (id,)
             ).fetchone()
         if not r:
@@ -314,11 +323,18 @@ class Store:
         sess = Session(
             id=r[0], server_id=r[1], server_name=r[2],
             started_at=_unix_to_dt(r[3]), ended_at=_unix_to_dt(r[4]), bytes=r[5],
+            name=r[6] or "",
         )
         transcript = ""
-        if r[6]:
-            transcript = self._open(crypto.PURPOSE_RECORDING, id, r[6]).decode("utf-8", "replace")
+        if r[7]:
+            transcript = self._open(crypto.PURPOSE_RECORDING, id, r[7]).decode("utf-8", "replace")
         return sess, transcript
+
+    def rename_session(self, id: str, name: str) -> None:
+        """Set (or clear) a recording's user-given label."""
+        with self._lock:
+            self._db.execute("UPDATE terminal_sessions SET name=? WHERE id=?", (name or None, id))
+            self._db.commit()
 
     def delete_session(self, id: str) -> None:
         """Remove a recorded session."""

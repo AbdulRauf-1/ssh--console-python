@@ -166,11 +166,12 @@ def create_app(store, manager, cfg, log: logging.Logger | None = None) -> FastAP
         if auth_type == "key" and secret and not secret.endswith(b"\n"):
             secret += b"\n"
         try:
-            store.create_ssh_server(name, host, port, username, auth_type, secret, passphrase)
+            new_id = store.create_ssh_server(name, host, port, username, auth_type, secret, passphrase)
         except Exception as e:  # noqa: BLE001
             log.error("create server: %s", e)
             return redirect("/?err=" + quote("Could not save the connection."))
-        return redirect("/")
+        # Open the new connection straight away rather than returning to the add form.
+        return redirect(f"/servers/{new_id}")
 
     @app.get("/servers/{id}")
     async def server_detail(request: Request, id: str):
@@ -447,6 +448,17 @@ def create_app(store, manager, cfg, log: logging.Logger | None = None) -> FastAP
         if sess.ended_at is not None:
             data["duration_label"] = _fmt_duration((sess.ended_at - sess.started_at).total_seconds())
         return render("replay.html", request, data)
+
+    @app.post("/recordings/{id}/rename")
+    async def rename_recording(request: Request, id: str):
+        form = await request.form()
+        name = (form.get("name") or "").strip()
+        try:
+            store.rename_session(id, name)
+        except Exception as e:  # noqa: BLE001
+            log.error("rename recording: %s", e)
+        back = form.get("back") or "/recordings"
+        return redirect(back)
 
     @app.post("/recordings/{id}/delete")
     async def delete_recording(request: Request, id: str):

@@ -23,18 +23,20 @@
     <table>
       <thead><tr>
         <th style="width:34px;padding-left:18px"><input type="checkbox" class="grp-all" onclick="toggleGroup(this)" title="Select all in this connection" style="width:auto"></th>
-        <th>Started</th><th>State</th><th>Output</th><th style="padding-right:18px;text-align:right">Actions</th>
+        <th>Name</th><th>Started</th><th>State</th><th>Output</th><th style="padding-right:18px;text-align:right">Actions</th>
       </tr></thead>
       <tbody>
       {% for s in g.sessions %}
       <tr>
         <td style="padding-left:18px"><input type="checkbox" name="session" value="{{ s.id }}" class="pick" onchange="updateCount()" style="width:auto"></td>
+        <td>{% if s.name %}{{ s.name }}{% else %}<span class="muted">Untitled</span>{% endif %}</td>
         <td class="muted">{{ ago(s.started_at) }}</td>
         <td>{% if s.ended_at %}<span class="muted">ended</span>{% else %}<span class="badge s-running">live</span>{% endif %}</td>
         <td class="muted">{{ fsize(s.bytes) }}</td>
         <td style="padding-right:18px;white-space:nowrap;text-align:right">
           {% if s.ended_at %}<a href="/recordings/{{ s.id }}">replay →</a>{% endif %}
-          <button type="button" class="secondary" style="padding:2px 9px;font-size:11px;margin-left:8px" onclick="deleteOne('{{ s.id }}')">Delete</button>
+          <button type="button" class="secondary" style="padding:2px 9px;font-size:11px;margin-left:8px" onclick="renameOne('{{ s.id }}',this.dataset.name)" data-name="{{ s.name }}">Rename</button>
+          <button type="button" class="secondary" style="padding:2px 9px;font-size:11px;margin-left:6px" onclick="deleteOne('{{ s.id }}')">Delete</button>
         </td>
       </tr>
       {% endfor %}
@@ -46,8 +48,17 @@
 </form>
 
 <form id="oneForm" method="post" style="display:none"><input type="hidden" name="back" value="/recordings"></form>
+<form id="renameRecForm" method="post" style="display:none"><input type="hidden" name="back" value="/recordings"><input type="hidden" name="name" id="renameRecName"></form>
 
 <script>
+function renameOne(id, current){
+  var nn = prompt('Name this recording (leave blank to clear):', current || '');
+  if (nn === null) return;
+  var f = document.getElementById('renameRecForm');
+  f.action = '/recordings/' + id + '/rename';
+  document.getElementById('renameRecName').value = nn.trim();
+  f.submit();
+}
 function picks(){ return Array.from(document.querySelectorAll('.pick')); }
 function updateCount(){
   var n = picks().filter(function(c){return c.checked;}).length;
