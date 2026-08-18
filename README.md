@@ -106,16 +106,33 @@ browser.
   survives restarts and upgrades.
 - Stop it with `docker compose down` (the volume, and your data, remain).
 
-To use a different local port, change the **left** side of the `ports:` line in
-`docker-compose.yml` (e.g. `"127.0.0.1:9000:8022"`); leave the right side `8022`.
+`docker compose up -d` **builds the image and runs it** in one step — no separate
+build needed. (Re-run it after pulling code changes; add `--build` to force a rebuild:
+`docker compose up -d --build`.)
+
+### Choosing the port
+
+The container always listens on **8022 inside**. You pick the port you *browse to* by
+changing the **left** side of the mapping — never the right side, and never put an IP
+there.
+
+- **Compose:** edit the `ports:` line in `docker-compose.yml`, e.g.
+  `"127.0.0.1:9000:8022"`, then `docker compose up -d`. Browse `:9000`.
+- **Plain Docker:** `-p 9000:8022`. Browse `:9000`.
 
 <details>
 <summary>Plain Docker, without Compose</summary>
+
+With plain `docker`, you **must build the image first** — it isn't published anywhere,
+so `docker run` on its own would try to download it and fail with *"pull access
+denied"*.
 
 ```bash
 docker build -t ssh-console .
 docker run -d --name ssh-console -p 127.0.0.1:8022:8022 -v ssh-console-data:/data ssh-console
 ```
+
+To use a different port, change the left number, e.g. `-p 9000:8022` → browse `:9000`.
 </details>
 
 ## Run from source
@@ -166,14 +183,32 @@ changes are needed.
 
 ### Option B — expose it on the server's public IP
 
-Only if you understand the risk (see the warning). Publish on all interfaces:
+Only if you understand the risk (see the warning). First **build the image**, then
+run it published on **all interfaces**:
 
 ```bash
+docker build -t ssh-console .
 docker run -d --name ssh-console -p 8022:8022 -v ssh-console-data:/data ssh-console
 ```
 
-> If a container named `ssh-console` already exists, remove it first with
-> `docker rm -f ssh-console` (your data is safe — it lives in the volume).
+Confirm it's up, then reach it from your laptop at **`http://YOUR_SERVER_PUBLIC_IP:8022`**.
+
+> **Three mistakes to avoid** (each gives a confusing Docker error):
+>
+> 1. **Do NOT put the public IP in `-p`.** `-p 18.116.66.88:8022:8022` fails with
+>    *"cannot assign requested address"* — on a cloud VM the public IP is **not** on
+>    the machine's network interface (the OS only sees the private `172.31.x.x`); the
+>    provider maps the public IP externally. Use `-p 8022:8022` (all interfaces) and
+>    reach it *via* the public IP from outside.
+> 2. **The right-hand port must stay `8022`** — that's the port *inside* the
+>    container. To use a different host port, change only the left side, e.g.
+>    `-p 9000:8022`. `-p 8023:8023` won't work (nothing listens on 8023 inside).
+> 3. **Name already in use?** A failed `docker run` still creates the container, so
+>    the name `ssh-console` gets taken. Remove it and re-run — your data is safe in
+>    the volume:
+>    ```bash
+>    docker rm -f ssh-console
+>    ```
 
 Then **open the port in your firewall**, ideally only to your own IP:
 
